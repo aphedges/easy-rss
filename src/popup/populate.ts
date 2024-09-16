@@ -10,6 +10,37 @@ async function populateEntries(): Promise<void> {
 		read: []
 	});
 
+	const onClick = async (e : Event, entry : Entry) => {
+		// Verify that it's a valid mouse click event.
+		if (e instanceof MouseEvent == false || e.button > 1) // 0 = main (left), 1 = auxiliary (middle)
+			return;
+		
+		// Mark as read.
+		read.push(entry.id);
+		browser.storage.local.set({ read });
+
+		// Only open the URL if user didn't click the "mark as read" button.
+		if ((e.target as Element).className === "read")
+			return;
+
+		// Determine which type of click was used (mimicking default link-clicking behavior).
+		if (e.shiftKey) {
+			if (e.button === 1) // shift + middle-click
+				browser.tabs.create({ url: entry.link, active: true }); // new ACTIVE tab
+			else if (e.button === 0) // shift + left-click
+				open(entry.link, undefined, "noreferrer"); // new window
+			return;
+		}
+		if (e.ctrlKey || e.button === 1) { // ctrl + left-click OR middle-click w/o keys
+			browser.tabs.create({ url: entry.link, active: false }); // new INACTIVE tab
+			return;
+		}
+
+		// If none of the above, open URL in the current active tab.
+		browser.tabs.update(undefined, { url: entry.link });
+		close(); // closes the pop-up
+	}
+
 	while (entriesEl.lastChild) entriesEl.removeChild(entriesEl.lastChild);
 
 	let unread = 0;
@@ -37,15 +68,9 @@ async function populateEntries(): Promise<void> {
 		).toLocaleDateString();
 		if (entry.thumbnail)
 			el.querySelector(".thumbnail")!.setAttribute("src", entry.thumbnail);
-
-		entryEl.addEventListener("click", async e => {
-			read.push(entry.id);
-			browser.storage.local.set({ read });
-
-			// Only open new tab if user didn't click the "mark as read" button
-			if ((e.target as Element).className !== "read")
-				browser.tabs.create({ url: entry.link });
-		});
+		
+		entryEl.addEventListener("click", async e => onClick(e, entry)); // triggered by left-click
+		entryEl.addEventListener("auxclick", async e => onClick(e, entry)); // triggered by every other mouse button
 
 		entriesEl.appendChild(el);
 		i++;
